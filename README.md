@@ -1,4 +1,5 @@
-<p align="center"><a href="https://github.com/compot2600/ShulkerBox"><img src="https://img.shields.io/github/downloads/compot2600/ShulkerBox/total?style=for-the-badge&color=4CAF50&logo=github" alt="Downloads"></a> <a href="https://github.com/compot2600/ShulkerBox"><img src="https://img.shields.io/github/watchers/compot2600/ShulkerBox?style=for-the-badge&color=2196F3" alt="Views"></a> <a href="https://github.com/compot2600/ShulkerBox"><img src="https://img.shields.io/github/languages/top/compot2600/ShulkerBox?style=for-the-badge&color=178600" alt="Language"></a> <a href="https://github.com/compot2600/ShulkerBox"><img src="https://img.shields.io/badge/SIZE-65_KB-708090?style=for-the-badge" alt="Size"></a></p>
+![Downloads](img.shields.io/github/downloads/compot2600/ShulkerBox/total?color=7A539D) ![Language](img.shields.io/badge/Language-C%23_7.3-7A539D) ![Size](img.shields.io/badge/Size-65_KB-7A539D)
+
 
 # ShulkerBox - Minecraft Profile & Mod Manager
 
