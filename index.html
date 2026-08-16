@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShulkerBox - Minecraft Profile Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #18181C;
+            color: #F5F5F7;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: #1E1E24;
+            border: 2px solid #2D2D35;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 100%;
+            padding: 40px 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            image-rendering: pixelated;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #FFFFFF;
+        }
+
+        .tagline {
+            font-size: 14px;
+            color: #A47CD4;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+
+        .description {
+            font-size: 15px;
+            color: #8A8A93;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .download-btn {
+            display: inline-block;
+            background-color: #7A539D;
+            color: #FFFFFF;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            padding: 14px 32px;
+            border-radius: 6px;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(122, 83, 157, 0.3);
+        }
+
+        .download-btn:hover {
+            background-color: #A47CD4;
+        }
+
+        .download-btn:active {
+            background-color: #51336E;
+            transform: scale(0.98);
+        }
+
+        .features {
+            border-top: 1px solid #2D2D35;
+            padding-top: 25px;
+            text-align: left;
+        }
+
+        .feature-item {
+            font-size: 14px;
+            color: #E4E4E7;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+        }
+
+        .feature-item::before {
+            content: "•";
+            color: #7A539D;
+            font-size: 20px;
+            margin-right: 10px;
+            line-height: 1;
+        }
+
+        .footer {
+            margin-top: 30px;
+            font-size: 12px;
+            color: #52525B;
+        }
+
+        .footer a {
+            color: #7A539D;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <img class="logo" src="ShulkerLoaderLogo.png" alt="ShulkerBox Logo">
+        
+        <h1>ShulkerBox</h1>
+        <div class="tagline">Instant Mod Switcher</div>
+        
+        <p class="description">
+            A lightweight Windows utility designed to store, manage, and hot-swap Minecraft mod profiles instantly without full game reinstalls or complex launcher setups.
+        </p>
+
+        <a href="https://github.com/compot2600/ShulkerBox/releases/download/ShulkerBox/ShulkerBox.exe" class="download-btn">
+            Download for Windows
+        </a>
+
+        <div class="features">
+            <div class="feature-item">One-click activation into your vanilla directory</div>
+            <div class="feature-item">Cleans up cryptic file names into readable titles</div>
+            <div class="feature-item">Export custom .shulker packages to share with friends</div>
+            <div class="feature-item">Completely standalone with no local installers needed</div>
+        </div>
+
+        <div class="footer">
+            Open source project on <a href="https://github.com/compot2600/ShulkerBox">https://github.com/compot2600/ShulkerBox</a>
+        </div>
+    </div>
+
+</body>
+</html>
