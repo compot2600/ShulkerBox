@@ -327,8 +327,9 @@
         const btnChooseFile = document.getElementById('btn-choose-file');
 
         function formatUsernameToEmail(username) {
-            if (username.includes('@')) return username;
-            return username.trim().toLowerCase() + "@shulker local";
+            if (username.includes('@')) return username.trim();
+            let cleanName = username.trim().toLowerCase().replace(/\s+/g, '');
+            return cleanName + "@shulker.local";
         }
 
         document.getElementById('btn-register').addEventListener('click', () => {
