@@ -299,13 +299,11 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
         import { getDatabase, ref as dbRef, push, set, onValue } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js";
-        import { getStorage, ref as strRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-storage.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAVgogRQdtsdDVU5jUcKsPKoCP7gPDfvMU",
             authDomain: "shulkerboxcommunity.firebaseapp.com",
             projectId: "shulkerboxcommunity",
-            storageBucket: "shulkerboxcommunity.firebasestorage.app",
             messagingSenderId: "606410013590",
             appId: "1:606410013590:web:f2a93e1094b8d2a5b53bb7",
             measurementId: "G-JM40G7B9DN",
@@ -314,7 +312,6 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        const storage = getStorage(app);
 
         const authLoggedOut = document.getElementById('auth-logged-out');
         const authLoggedIn = document.getElementById('auth-logged-in');
@@ -391,58 +388,46 @@
             const file = e.target.files[0];
             if (!file) return;
 
+            if (file.size > 20 * 1024 * 1024) {
+                return alert("File is too large. Maximum size is 20MB.");
+            }
+
             btnChooseFile.disabled = true;
-            uploadStatus.textContent = "Extracting local package details...";
+            uploadStatus.textContent = "Processing and sharing your box...";
+
+            let rawName = file.name.replace('.shulker', '');
+            let nameParts = rawName.split('-');
+            let boxName = nameParts[0].replace(/_/g, ' ');
+            boxName = boxName.charAt(0).toUpperCase() + boxName.slice(1);
+            let boxTag = nameParts.length > 1 ? nameParts[1].replace(/_/g, ' ') : "No Tags";
 
             const reader = new FileReader();
             reader.onload = function(evt) {
-                let metaContent = "";
-                try {
-                    const text = evt.target.result;
-                    const match = text.match(/[a-zA-Z0-9_\-\s]+\|[a-zA-Z0-9_\-\s\.]*/);
-                    metaContent = match ? match[0] : file.name.replace('.shulker', '') + "|No Tags";
-                } catch(e) {
-                    metaContent = file.name.replace('.shulker', '') + "|No Tags";
-                }
+                const binaryString = evt.target.result;
+                const base64Data = btoa(
+                    new Uint8Array(binaryString)
+                        .reduce((data, byte) => data + String.fromCharCode(byte), '')
+                );
 
-                const parts = metaContent.split('|');
-                const boxName = parts[0] || file.name.replace('.shulker', '');
-                const boxTag = parts[1] || "No Tags";
-
-                uploadStatus.textContent = "Uploading packaged mods to cloud storage...";
-                
-                const storageRef = strRef(storage, 'boxes/' + Date.now() + '_' + file.name);
-                
-                uploadBytes(storageRef, file).then((snapshot) => {
-                    getDownloadURL(snapshot.ref).then((downloadURL) => {
-                        const newBoxRef = push(dbRef(db, 'shared_boxes'));
-                        set(newBoxRef, {
-                            name: boxName,
-                            tag: boxTag,
-                            fileUrl: downloadURL,
-                            author: currentUser,
-                            createdAt: Date.now()
-                        }).then(() => {
-                            uploadStatus.textContent = "Successfully shared!";
-                            btnChooseFile.disabled = false;
-                            document.getElementById('file-uploader').value = "";
-                        }).catch((err) => {
-                            btnChooseFile.disabled = false;
-                            uploadStatus.textContent = "Database reference error.";
-                            alert("DATABASE ERROR: " + err.message);
-                        });
-                    }).catch((err) => {
-                        btnChooseFile.disabled = false;
-                        uploadStatus.textContent = "URL generation error.";
-                        alert("URL GENERATION ERROR: " + err.message);
-                    });
+                const newBoxRef = push(dbRef(db, 'shared_boxes'));
+                set(newBoxRef, {
+                    name: boxName,
+                    tag: boxTag,
+                    fileData: base64Data,
+                    fileName: file.name,
+                    author: currentUser,
+                    createdAt: Date.now()
+                }).then(() => {
+                    uploadStatus.textContent = "Successfully shared!";
+                    btnChooseFile.disabled = false;
+                    document.getElementById('file-uploader').value = "";
                 }).catch((err) => {
                     btnChooseFile.disabled = false;
-                    uploadStatus.textContent = "Cloud communication failed.";
-                    alert("GOOGLE STORAGE CRITICAL ERROR:\n\n" + err.message + "\n\nCode: " + err.code);
+                    uploadStatus.textContent = "";
+                    alert("Sharing failed: " + err.message);
                 });
             };
-            reader.readAsText(file.slice(0, 2048));
+            reader.readAsArrayBuffer(file);
         });
 
         const boxesRef = dbRef(db, 'shared_boxes');
@@ -456,7 +441,9 @@
             }
 
             const data = snapshot.val();
-            const sortedBoxes = Object.keys(data).map(key => data[key]).sort((a, b) => b.createdAt - a.createdAt);
+            const sortedBoxes = Object.keys(data).map(key => {
+                return { id: key, ...data[key] };
+            }).sort((a, b) => b.createdAt - a.createdAt);
 
             sortedBoxes.forEach((box) => {
                 const card = document.createElement('div');
@@ -470,10 +457,25 @@
                     </div>
                     <div>
                         <div class="box-author">Packed by: ${box.author}</div>
-                        <a href="${box.fileUrl}" class="box-dl-link">Unpack Box</a>
+                        <button id="dl-${box.id}" class="box-dl-link" style="width:100%; border:none; cursor:pointer;">Unpack Box</button>
                     </div>
                 `;
                 boxesList.appendChild(card);
+
+                document.getElementById(`dl-${box.id}`).addEventListener('click', () => {
+                    const byteCharacters = atob(box.fileData);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: "application/x-shulker" });
+                    
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = box.fileName || (box.name + ".shulker");
+                    link.click();
+                });
             });
         }, (err) => {
             boxesLoading.classList.add('hidden');
