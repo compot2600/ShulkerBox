@@ -403,54 +403,88 @@
 
             btnChooseFile.disabled = true;
             uploadStatus.textContent = "Reading Shulker Box metadata...";
-            const reader = new FileReader();
 
-            reader.onload = function(evt) {
-                JSZip.loadAsync(evt.target.result)
-                    .then(function(zip) {
-                        const metaFile = zip.file("shulker.meta");
-                        if (!metaFile) {
-                            throw new Error("Invalid format: shulker.meta file not found inside the box.");
+            const ds = new DecompressionStream("gzip");
+            const writer = ds.writable.getWriter();
+            writer.write(file);
+            writer.close();
+
+            new Response(ds.readable).arrayBuffer()
+                .then(buffer => {
+                    const view = new DataView(buffer);
+                    let metaContent = "";
+                    
+                    for (let i = 0; i < buffer.byteLength - 12; i++) {
+                        if (view.getUint8(i) === 115 && view.getUint8(i+1) === 104 && view.getUint8(i+2) === 117 && view.getUint8(i+3) === 108) {
+                            let len = view.getUint32(i + 8, true);
+                            let start = i + 12;
+                            let bytes = new Uint8Array(buffer, start, len);
+                            metaContent = new TextDecoder().decode(bytes);
+                            break;
                         }
-                        return metaFile.async("string");
-                    })
-                    .then(function(metaContent) {
-                        const parts = metaContent.split('|');
-                        const boxName = parts[0] || file.name.replace('.shulker', '');
-                        const boxTag = parts[1] || "No Tags";
+                    }
 
-                        uploadStatus.textContent = "Uploading packaged mods to cloud storage...";
-                        const storageRef = ref(storage, 'boxes/' + Date.now() + '_' + file.name);
-                        
-                        uploadBytes(storageRef, file).then((snapshot) => {
-                            getDownloadURL(snapshot.ref).then((downloadURL) => {
-                                addDoc(collection(db, "shared_boxes"), {
-                                    name: boxName,
-                                    tag: boxTag,
-                                    fileUrl: downloadURL,
-                                    author: currentUser,
-                                    createdAt: Date.now()
-                                }).then(() => {
-                                    uploadStatus.textContent = "Successfully shared!";
-                                    btnChooseFile.disabled = false;
-                                    document.getElementById('file-uploader').value = "";
-                                    loadCommunityBoxes();
-                                });
-                            });
-                        }).catch((err) => {
+                    if (!metaContent) {
+                        const reader = new FileReader();
+                        reader.onload = function(evt) {
+                            const text = evt.target.result;
+                            const match = text.match(/[a-zA-Z0-9_\-\s]+\|[a-zA-Z0-9_\-\s\.]*/);
+                            if (match) {
+                                processUpload(match[0]);
+                            } else {
+                                processUpload(file.name.replace('.shulker', '') + "|No Tags");
+                            }
+                        };
+                        reader.readAsText(file.slice(0, 2048));
+                    } else {
+                        processUpload(metaContent);
+                    }
+                })
+                .catch(() => {
+                    const reader = new FileReader();
+                    reader.onload = function(evt) {
+                        const text = evt.target.result;
+                        const match = text.match(/[a-zA-Z0-9_\-\s]+\|[a-zA-Z0-9_\-\s\.]*/);
+                        if (match) {
+                            processUpload(match[0]);
+                        } else {
+                            processUpload(file.name.replace('.shulker', '') + "|No Tags");
+                        }
+                    };
+                    reader.readAsText(file.slice(0, 2048));
+                });
+
+            function processUpload(metaContent) {
+                const parts = metaContent.split('|');
+                const boxName = parts[0] || file.name.replace('.shulker', '');
+                const boxTag = parts[1] || "No Tags";
+
+                uploadStatus.textContent = "Uploading packaged mods to cloud storage...";
+                const storageRef = ref(storage, 'boxes/' + Date.now() + '_' + file.name);
+                
+                uploadBytes(storageRef, file).then((snapshot) => {
+                    getDownloadURL(snapshot.ref).then((downloadURL) => {
+                        addDoc(collection(db, "shared_boxes"), {
+                            name: boxName,
+                            tag: boxTag,
+                            fileUrl: downloadURL,
+                            author: currentUser,
+                            createdAt: Date.now()
+                        }).then(() => {
+                            uploadStatus.textContent = "Successfully shared!";
                             btnChooseFile.disabled = false;
-                            uploadStatus.textContent = "";
-                            alert("Cloud storage upload failed: " + err.message);
+                            document.getElementById('file-uploader').value = "";
+                            loadCommunityBoxes();
                         });
-                    })
-                    .catch(function(err) {
-                        btnChooseFile.disabled = false;
-                        uploadStatus.textContent = "";
-                        alert("Error parsing .shulker file: " + err.message);
                     });
-            };
-            reader.readAsArrayBuffer(file);
+                }).catch((err) => {
+                    btnChooseFile.disabled = false;
+                    uploadStatus.textContent = "";
+                    alert("Cloud storage upload failed: " + err.message);
+                });
+            }
         });
+
 
         function loadCommunityBoxes() {
             boxesLoading.classList.remove('hidden');
