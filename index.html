@@ -460,11 +460,13 @@
                 const boxTag = parts[1] || "No Tags";
 
                 uploadStatus.textContent = "Uploading packaged mods to cloud storage...";
-                const storageRef = ref(storage, 'boxes/' + Date.now() + '_' + file.name);
+                
+                const storageRef = strRef(storage, 'boxes/' + Date.now() + '_' + file.name);
                 
                 uploadBytes(storageRef, file).then((snapshot) => {
                     getDownloadURL(snapshot.ref).then((downloadURL) => {
-                        addDoc(collection(db, "shared_boxes"), {
+                        const newBoxRef = push(dbRef(db, 'shared_boxes'));
+                        set(newBoxRef, {
                             name: boxName,
                             tag: boxTag,
                             fileUrl: downloadURL,
@@ -474,8 +476,15 @@
                             uploadStatus.textContent = "Successfully shared!";
                             btnChooseFile.disabled = false;
                             document.getElementById('file-uploader').value = "";
-                            loadCommunityBoxes();
+                        }).catch((err) => {
+                            btnChooseFile.disabled = false;
+                            uploadStatus.textContent = "";
+                            alert("Database write failed: " + err.message);
                         });
+                    }).catch((err) => {
+                        btnChooseFile.disabled = false;
+                        uploadStatus.textContent = "";
+                        alert("Failed to get download URL: " + err.message);
                     });
                 }).catch((err) => {
                     btnChooseFile.disabled = false;
