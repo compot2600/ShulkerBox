@@ -298,8 +298,8 @@
     </div>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
-        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-storage.js";
+        import { getDatabase, ref as dbRef, push, set, onValue } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+        import { getStorage, ref as strRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-storage.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAVgogRQdtsdDVU5jUcKsPKoCP7gPDfvMU",
@@ -308,11 +308,12 @@
             storageBucket: "shulkerboxcommunity.firebasestorage.app",
             messagingSenderId: "606410013590",
             appId: "1:606410013590:web:f2a93e1094b8d2a5b53bb7",
-            measurementId: "G-JM40G7B9DN"
+            measurementId: "G-JM40G7B9DN",
+            databaseURL: "https://firebaseio.com"
         };
 
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const db = getDatabase(app);
         const storage = getStorage(app);
 
         const authLoggedOut = document.getElementById('auth-logged-out');
@@ -337,10 +338,9 @@
                 authLoggedIn.classList.add('hidden');
                 uploadZone.classList.add('hidden');
             }
-            loadCommunityBoxes();
         }
 
-        document.getElementById('btn-register').addEventListener('click', async () => {
+        document.getElementById('btn-register').addEventListener('click', () => {
             const userInp = document.getElementById('auth-username').value.trim();
             const passInp = document.getElementById('auth-password').value;
             
@@ -348,47 +348,37 @@
             if(userInp.length < 3) return alert("Username must be at least 3 characters.");
             if(passInp.length < 6) return alert("Password must be at least 6 characters.");
 
-            const userRef = doc(db, "users", userInp.toLowerCase());
-            
-            try {
-                const userSnap = await getDoc(userRef);
-                if (userSnap.exists()) {
-                    return alert("This username is already taken. Please choose another one.");
+            const userRef = dbRef(db, 'users/' + userInp.toLowerCase());
+            onValue(userRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    alert("This username is already taken.");
+                } else {
+                    set(userRef, { username: userInp, password: passInp })
+                        .then(() => {
+                            localStorage.setItem('shulker_user', userInp);
+                            currentUser = userInp;
+                            location.reload();
+                        });
                 }
-
-                await setDoc(userRef, {
-                    username: userInp,
-                    password: passInp
-                });
-
-                localStorage.setItem('shulker_user', userInp);
-                currentUser = userInp;
-                checkAuthState();
-            } catch (error) {
-                alert("Registration failed: " + error.message);
-            }
+            }, { onlyOnce: true });
         });
 
-        document.getElementById('btn-login').addEventListener('click', async () => {
+        document.getElementById('btn-login').addEventListener('click', () => {
             const userInp = document.getElementById('auth-username').value.trim();
             const passInp = document.getElementById('auth-password').value;
             
             if(!userInp || !passInp) return alert("Please fill in all fields.");
 
-            const userRef = doc(db, "users", userInp.toLowerCase());
-
-            try {
-                const userSnap = await getDoc(userRef);
-                if (!userSnap.exists() || userSnap.data().password !== passInp) {
-                    return alert("Invalid username or password.");
+            const userRef = dbRef(db, 'users/' + userInp.toLowerCase());
+            onValue(userRef, (snapshot) => {
+                if (snapshot.exists() && snapshot.val().password === passInp) {
+                    localStorage.setItem('shulker_user', snapshot.val().username);
+                    currentUser = snapshot.val().username;
+                    checkAuthState();
+                } else {
+                    alert("Invalid username or password.");
                 }
-
-                localStorage.setItem('shulker_user', userSnap.data().username);
-                currentUser = userSnap.data().username;
-                checkAuthState();
-            } catch (error) {
-                alert("Login failed: " + error.message);
-            }
+            }, { onlyOnce: true });
         });
 
         document.getElementById('btn-logout').addEventListener('click', () => {
@@ -402,59 +392,19 @@
             if (!file) return;
 
             btnChooseFile.disabled = true;
-            uploadStatus.textContent = "Reading Shulker Box metadata...";
+            uploadStatus.textContent = "Extracting local package details...";
 
-            const ds = new DecompressionStream("gzip");
-            const writer = ds.writable.getWriter();
-            writer.write(file);
-            writer.close();
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                let metaContent = "";
+                try {
+                    const text = evt.target.result;
+                    const match = text.match(/[a-zA-Z0-9_\-\s]+\|[a-zA-Z0-9_\-\s\.]*/);
+                    metaContent = match ? match[0] : file.name.replace('.shulker', '') + "|No Tags";
+                } catch(e) {
+                    metaContent = file.name.replace('.shulker', '') + "|No Tags";
+                }
 
-            new Response(ds.readable).arrayBuffer()
-                .then(buffer => {
-                    const view = new DataView(buffer);
-                    let metaContent = "";
-                    
-                    for (let i = 0; i < buffer.byteLength - 12; i++) {
-                        if (view.getUint8(i) === 115 && view.getUint8(i+1) === 104 && view.getUint8(i+2) === 117 && view.getUint8(i+3) === 108) {
-                            let len = view.getUint32(i + 8, true);
-                            let start = i + 12;
-                            let bytes = new Uint8Array(buffer, start, len);
-                            metaContent = new TextDecoder().decode(bytes);
-                            break;
-                        }
-                    }
-
-                    if (!metaContent) {
-                        const reader = new FileReader();
-                        reader.onload = function(evt) {
-                            const text = evt.target.result;
-                            const match = text.match(/[a-zA-Z0-9_\-\s]+\|[a-zA-Z0-9_\-\s\.]*/);
-                            if (match) {
-                                processUpload(match[0]);
-                            } else {
-                                processUpload(file.name.replace('.shulker', '') + "|No Tags");
-                            }
-                        };
-                        reader.readAsText(file.slice(0, 2048));
-                    } else {
-                        processUpload(metaContent);
-                    }
-                })
-                .catch(() => {
-                    const reader = new FileReader();
-                    reader.onload = function(evt) {
-                        const text = evt.target.result;
-                        const match = text.match(/[a-zA-Z0-9_\-\s]+\|[a-zA-Z0-9_\-\s\.]*/);
-                        if (match) {
-                            processUpload(match[0]);
-                        } else {
-                            processUpload(file.name.replace('.shulker', '') + "|No Tags");
-                        }
-                    };
-                    reader.readAsText(file.slice(0, 2048));
-                });
-
-            function processUpload(metaContent) {
                 const parts = metaContent.split('|');
                 const boxName = parts[0] || file.name.replace('.shulker', '');
                 const boxTag = parts[1] || "No Tags";
@@ -478,60 +428,57 @@
                             document.getElementById('file-uploader').value = "";
                         }).catch((err) => {
                             btnChooseFile.disabled = false;
-                            uploadStatus.textContent = "";
-                            alert("Database write failed: " + err.message);
+                            uploadStatus.textContent = "Database reference error.";
+                            alert("DATABASE ERROR: " + err.message);
                         });
                     }).catch((err) => {
                         btnChooseFile.disabled = false;
-                        uploadStatus.textContent = "";
-                        alert("Failed to get download URL: " + err.message);
+                        uploadStatus.textContent = "URL generation error.";
+                        alert("URL GENERATION ERROR: " + err.message);
                     });
                 }).catch((err) => {
                     btnChooseFile.disabled = false;
-                    uploadStatus.textContent = "";
-                    alert("Cloud storage upload failed: " + err.message);
+                    uploadStatus.textContent = "Cloud communication failed.";
+                    alert("GOOGLE STORAGE CRITICAL ERROR:\n\n" + err.message + "\n\nCode: " + err.code);
                 });
-            }
+            };
+            reader.readAsText(file.slice(0, 2048));
         });
 
-
-        function loadCommunityBoxes() {
-            boxesLoading.classList.remove('hidden');
+        const boxesRef = dbRef(db, 'shared_boxes');
+        onValue(boxesRef, (snapshot) => {
+            boxesLoading.classList.add('hidden');
             boxesList.innerHTML = "";
+            
+            if (!snapshot.exists()) {
+                boxesList.innerHTML = "<p style='grid-column: 1/-1; text-align: center; color: #71717A; font-size: 14px;'>No shared boxes yet. Be the first to upload!</p>";
+                return;
+            }
 
-            const q = query(collection(db, "shared_boxes"), orderBy("createdAt", "desc"));
-            getDocs(q).then((querySnapshot) => {
-                boxesLoading.classList.add('hidden');
-                if(querySnapshot.empty) {
-                    boxesList.innerHTML = "<p style='grid-column: 1/-1; text-align: center; color: #71717A; font-size: 14px;'>No shared boxes yet. Be the first to upload!</p>";
-                    return;
-                }
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    const card = document.createElement('div');
-                    card.className = 'box-card';
-                    
-                    const tagMarkup = data.tag && data.tag !== "No Tags" ? `<span class="box-tag">${data.tag}</span>` : '';
-                    
-                    card.innerHTML = `
-                        <div>
-                            <div class="box-title">${data.name}</div>
-                            ${tagMarkup}
-                        </div>
-                        <div>
-                            <div class="box-author">Packed by: ${data.author}</div>
-                            <a href="${data.fileUrl}" class="box-dl-link">Unpack Box</a>
-                        </div>
-                    `;
-                    boxesList.appendChild(card);
-                });
-            }).catch((err) => {
-                boxesLoading.classList.add('hidden');
-                boxesList.innerHTML = `<p style='grid-column: 1/-1; text-align: center; color: #EF4444; font-size: 14px;'>Failed to load database: ${err.message}</p>`;
+            const data = snapshot.val();
+            const sortedBoxes = Object.keys(data).map(key => data[key]).sort((a, b) => b.createdAt - a.createdAt);
+
+            sortedBoxes.forEach((box) => {
+                const card = document.createElement('div');
+                card.className = 'box-card';
+                const tagMarkup = box.tag && box.tag !== "No Tags" ? `<span class="box-tag">${box.tag}</span>` : '';
+                
+                card.innerHTML = `
+                    <div>
+                        <div class="box-title">${box.name}</div>
+                        ${tagMarkup}
+                    </div>
+                    <div>
+                        <div class="box-author">Packed by: ${box.author}</div>
+                        <a href="${box.fileUrl}" class="box-dl-link">Unpack Box</a>
+                    </div>
+                `;
+                boxesList.appendChild(card);
             });
-        }
+        }, (err) => {
+            boxesLoading.classList.add('hidden');
+            boxesList.innerHTML = `<p style='grid-column: 1/-1; text-align: center; color: #EF4444; font-size: 14px;'>Failed to load database: ${err.message}</p>`;
+        });
 
         checkAuthState();
     </script>
-</body>
-</html>
