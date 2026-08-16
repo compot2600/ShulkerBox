@@ -1,3 +1,5 @@
+<p align="center"><a href="https://github.com/compot2600/ShulkerBox"><img src="https://img.shields.io/github/downloads/compot2600/ShulkerBox/total?style=for-the-badge&color=4CAF50&logo=github" alt="Downloads"></a> <a href="https://github.com/compot2600/ShulkerBox"><img src="https://img.shields.io/github/watchers/compot2600/ShulkerBox?style=for-the-badge&color=2196F3" alt="Views"></a> <a href="https://github.com/compot2600/ShulkerBox"><img src="https://img.shields.io/github/languages/top/compot2600/ShulkerBox?style=for-the-badge&color=178600" alt="Language"></a> <a href="https://github.com/compot2600/ShulkerBox"><img src="https://img.shields.io/badge/SIZE-127_KB-708090?style=for-the-badge" alt="Size"></a></p>
+
 # ShulkerBox - Minecraft Profile & Mod Manager
 
 ShulkerBox is a lightweight, high-performance Windows desktop application built with C# and WPF. It acts as an instant profile switcher for Minecraft modifications, allowing players to organize, pack, and instantly hot-swap multiple mod setups with just a few clicks.
