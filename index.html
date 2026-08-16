@@ -298,8 +298,7 @@
     </div>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-storage.js";
 
         const firebaseConfig = {
@@ -313,7 +312,6 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
         const db = getFirestore(app);
         const storage = getStorage(app);
 
@@ -326,58 +324,13 @@
         const uploadStatus = document.getElementById('upload-status');
         const btnChooseFile = document.getElementById('btn-choose-file');
 
-        function formatUsernameToEmail(username) {
-            if (username.includes('@')) return username.trim();
-            let cleanName = username.trim().toLowerCase().replace(/\s+/g, '');
-            return cleanName + "@shulker.local";
-        }
+        let currentUser = localStorage.getItem('shulker_user') || null;
 
-        document.getElementById('btn-register').addEventListener('click', () => {
-            const userInp = document.getElementById('auth-username').value;
-            const passInp = document.getElementById('auth-password').value;
-            if(!userInp || !passInp) return alert("Please fill in all fields.");
-            if(passInp.length < 6) return alert("Password must be at least 6 characters long.");
-
-            const email = formatUsernameToEmail(userInp);
-            createUserWithEmailAndPassword(auth, email, passInp)
-                .then((userCredential) => {
-                    updateProfile(userCredential.user, { displayName: userInp.trim() })
-                        .then(() => { location.reload(); });
-                })
-                .catch((error) => { 
-                    if (error.code === 'auth/email-already-in-use') {
-                        alert("This username is already taken. Please choose another one.");
-                    } else {
-                        alert("Registration failed: " + error.message); 
-                    }
-                });
-        });
-
-        document.getElementById('btn-login').addEventListener('click', () => {
-            const userInp = document.getElementById('auth-username').value;
-            const passInp = document.getElementById('auth-password').value;
-            if(!userInp || !passInp) return alert("Please fill in all fields.");
-
-            const email = formatUsernameToEmail(userInp);
-            signInWithEmailAndPassword(auth, email, passInp)
-                .catch((error) => { 
-                    if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-                        alert("Invalid username or password.");
-                    } else {
-                        alert("Login failed: " + error.message);
-                    }
-                });
-        });
-
-        document.getElementById('btn-logout').addEventListener('click', () => {
-            signOut(auth);
-        });
-
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
+        function checkAuthState() {
+            if (currentUser) {
                 authLoggedOut.classList.add('hidden');
                 authLoggedIn.classList.remove('hidden');
-                currentUserDisplay.textContent = user.displayName || user.email.split('@');
+                currentUserDisplay.textContent = currentUser;
                 uploadZone.classList.remove('hidden');
             } else {
                 authLoggedOut.classList.remove('hidden');
@@ -385,6 +338,63 @@
                 uploadZone.classList.add('hidden');
             }
             loadCommunityBoxes();
+        }
+
+        document.getElementById('btn-register').addEventListener('click', async () => {
+            const userInp = document.getElementById('auth-username').value.trim();
+            const passInp = document.getElementById('auth-password').value;
+            
+            if(!userInp || !passInp) return alert("Please fill in all fields.");
+            if(userInp.length < 3) return alert("Username must be at least 3 characters.");
+            if(passInp.length < 6) return alert("Password must be at least 6 characters.");
+
+            const userRef = doc(db, "users", userInp.toLowerCase());
+            
+            try {
+                const userSnap = await getDoc(userRef);
+                if (userSnap.exists()) {
+                    return alert("This username is already taken. Please choose another one.");
+                }
+
+                await setDoc(userRef, {
+                    username: userInp,
+                    password: passInp
+                });
+
+                localStorage.setItem('shulker_user', userInp);
+                currentUser = userInp;
+                checkAuthState();
+            } catch (error) {
+                alert("Registration failed: " + error.message);
+            }
+        });
+
+        document.getElementById('btn-login').addEventListener('click', async () => {
+            const userInp = document.getElementById('auth-username').value.trim();
+            const passInp = document.getElementById('auth-password').value;
+            
+            if(!userInp || !passInp) return alert("Please fill in all fields.");
+
+            const userRef = doc(db, "users", userInp.toLowerCase());
+
+            try {
+                const userSnap = await getDoc(userRef);
+                if (!userSnap.exists() || userSnap.data().password !== passInp) {
+                    return alert("Invalid username or password.");
+                }
+
+                localStorage.setItem('shulker_user', userSnap.data().username);
+                currentUser = userSnap.data().username;
+                checkAuthState();
+            } catch (error) {
+                alert("Login failed: " + error.message);
+            }
+        });
+
+        document.getElementById('btn-logout').addEventListener('click', () => {
+            localStorage.removeItem('shulker_user');
+            currentUser = null;
+            checkAuthState();
         });
 
         document.getElementById('file-uploader').addEventListener('change', function(e) {
@@ -418,7 +428,7 @@
                                     name: boxName,
                                     tag: boxTag,
                                     fileUrl: downloadURL,
-                                    author: auth.currentUser.displayName || auth.currentUser.email.split('@')[0],
+                                    author: currentUser,
                                     createdAt: Date.now()
                                 }).then(() => {
                                     uploadStatus.textContent = "Successfully shared!";
@@ -477,6 +487,8 @@
                 boxesList.innerHTML = `<p style='grid-column: 1/-1; text-align: center; color: #EF4444; font-size: 14px;'>Failed to load database: ${err.message}</p>`;
             });
         }
+
+        checkAuthState();
     </script>
 </body>
 </html>
